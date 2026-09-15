@@ -133,7 +133,7 @@
             
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
                 <!-- TaskFlow -->
-                <div class="game-block" onclick="launchGame('https://core-logic-utils.github.io/algebra/index.html')">
+                <div class="game-block" onclick="launchProxiedGame('https://core-logic-utils.github.io/algebra/index.html')">
                     <img src="https://static.vecteezy.com/system/resources/thumbnails/006/692/321/small/chatting-message-icon-template-black-color-editable-chatting-message-icon-symbol-flat-illustration-for-graphic-and-web-design-free-vector.jpg" alt="Algebra Site">
                     <p>Cha†</p>
                 </div>
@@ -393,7 +393,7 @@
                     <img src="https://play-lh.googleusercontent.com/ym7hOY7sjtsuZ-CR2tmvtsNEgPTkufUPKdaUKcNHOvJS3bf7CIxA7Eyc23FbnzziPsc" alt="Bridge Race">
                     <p>Bridge Race</p>
                 </div>
-                <div class="game-block" onclick="launchProtectedGame('https://core-logic-utils.github.io/algebra/task/index.html')">
+                <div class="game-block" onclick="launchProtectedProxiedGame('https://core-logic-utils.github.io/algebra/task/index.html')">
                     <img src="https://static.vecteezy.com/system/resources/thumbnails/006/692/321/small/chatting-message-icon-template-black-color-editable-chatting-message-icon-symbol-flat-illustration-for-graphic-and-web-design-free-vector.jpg" alt="Algebra Site">
                     <p>Cha†</p>
                 </div>
@@ -536,11 +536,10 @@
     initParticles();
     animate();
 
-    // ========== ORIGINAL GAME LOGIC ==========
-    function launchGame(url) {
+    // ========== ORIGINAL GAME LOG    function launchGame(url) {
         const container = document.getElementById('game-container');
         const frame = document.getElementById('game-frame');
-        
+
         frame.src = url;
         container.style.display = 'block';
     }
@@ -548,16 +547,71 @@
     function closeGame() {
         const container = document.getElementById('game-container');
         const frame = document.getElementById('game-frame');
-        
+
         container.style.display = 'none';
+
+        if (frame.dataset.blobUrl) {
+            URL.revokeObjectURL(frame.dataset.blobUrl);
+            delete frame.dataset.blobUrl;
+        }
+
         frame.src = '';
     }
 
-    function launchProtectedGame(url) {
+    function loadProxiedGame(url) {
+        const container = document.getElementById('game-container');
+        const frame = document.getElementById('game-frame');
+
+        const relayUrl = "https://logistical-utilities.vercel.app";
+        const proxyUrl = relayUrl + "/api/relay?url=" + encodeURIComponent(url);
+
+        fetch(proxyUrl)
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error("Proxy request failed");
+                }
+
+                return response.text();
+            })
+            .then(function(html) {
+                const targetDirectory = new URL("./", url).href;
+
+                if (html.indexOf("<head>") !== -1) {
+                    html = html.replace(
+                        "<head>",
+                        "<head><base href=\"" + targetDirectory + "\">"
+                    );
+                } else {
+                    html = "<base href=\"" + targetDirectory + "\">" + html;
+                }
+
+                const blob = new Blob([html], { type: "text/html" });
+                const blobUrl = URL.createObjectURL(blob);
+
+                if (frame.dataset.blobUrl) {
+                    URL.revokeObjectURL(frame.dataset.blobUrl);
+                }
+
+                frame.dataset.blobUrl = blobUrl;
+                frame.src = blobUrl;
+                container.style.display = 'block';
+            })
+            .catch(function(error) {
+                console.error(error);
+                alert("Failed to load content through proxy.");
+            });
+    }
+
+    function launchProxiedGame(url) {
+        loadProxiedGame(url);
+    }
+
+    function launchProtectedProxiedGame(url) {
         const password = prompt('Password:');
         if (password === 'cinnamon29') {
-            launchGame(url);
+            loadProxiedGame(url);
         }
+    }       }
     }
 
     // Leave confirmation
