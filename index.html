@@ -536,12 +536,77 @@
     initParticles();
     animate();
 
-    // ========== ORIGINAL GAME LOG    function launchGame(url) {
+    // ========== GAME LOADING / PROXY ==========
+
+    function launchGame(url) {
+        loadProxiedGame(url);
+    }
+
+    function launchProtectedGame(url) {
+        const password = prompt('Password:');
+        if (password === 'cinnamon29') {
+            loadProxiedGame(url);
+        }
+    }
+
+    function loadProxiedGame(url) {
         const container = document.getElementById('game-container');
         const frame = document.getElementById('game-frame');
 
-        frame.src = url;
+        const relayUrl = "https://logistical-utilities.vercel.app";
+        const proxyUrl = relayUrl + "/api/relay?url=" + encodeURIComponent(url);
+
+        // Clean up any previous proxied page.
+        if (frame.dataset.blobUrl) {
+            URL.revokeObjectURL(frame.dataset.blobUrl);
+            delete frame.dataset.blobUrl;
+        }
+
+        // Show a loading state immediately so the click visibly does something.
         container.style.display = 'block';
+        frame.srcdoc = '<html><body style="margin:0;background:#111;color:white;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;"><div>Loading...</div></body></html>';
+
+        fetch(proxyUrl, {
+            method: 'GET',
+            cache: 'no-store'
+        })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error("Proxy request failed: " + response.status);
+            }
+            return response.text();
+        })
+        .then(function(html) {
+            // Make relative links, scripts, images, stylesheets, etc. resolve
+            // against the original game's directory.
+            const targetDirectory = new URL("./", url).href;
+
+            if (/<head\b[^>]*>/i.test(html)) {
+                html = html.replace(
+                    /<head\b([^>]*)>/i,
+                    '<head$1><base href="' + targetDirectory.replace(/"/g, '&quot;') + '">'
+                );
+            } else {
+                html = '<base href="' + targetDirectory.replace(/"/g, '&quot;') + '">' + html;
+            }
+
+            const blob = new Blob([html], { type: 'text/html' });
+            const blobUrl = URL.createObjectURL(blob);
+
+            frame.dataset.blobUrl = blobUrl;
+            frame.srcdoc = '';
+            frame.src = blobUrl;
+        })
+        .catch(function(error) {
+            console.error("Game proxy error:", error);
+            frame.srcdoc =
+                '<html><body style="margin:0;background:#111;color:white;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;">' +
+                '<div><h2>Failed to load game</h2><p>' +
+                String(error.message || error).replace(/[<>&"]/g, function(c) {
+                    return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];
+                }) +
+                '</p></div></body></html>';
+        });
     }
 
     function closeGame() {
@@ -555,64 +620,15 @@
             delete frame.dataset.blobUrl;
         }
 
+        frame.srcdoc = '';
         frame.src = '';
     }
 
-    function loadProxiedGame(url) {
-        const container = document.getElementById('game-container');
-        const frame = document.getElementById('game-frame');
-
-        const relayUrl = "https://logistical-utilities.vercel.app";
-        const proxyUrl = relayUrl + "/api/relay?url=" + encodeURIComponent(url);
-
-        fetch(proxyUrl)
-            .then(function(response) {
-                if (!response.ok) {
-                    throw new Error("Proxy request failed");
-                }
-
-                return response.text();
-            })
-            .then(function(html) {
-                const targetDirectory = new URL("./", url).href;
-
-                if (html.indexOf("<head>") !== -1) {
-                    html = html.replace(
-                        "<head>",
-                        "<head><base href=\"" + targetDirectory + "\">"
-                    );
-                } else {
-                    html = "<base href=\"" + targetDirectory + "\">" + html;
-                }
-
-                const blob = new Blob([html], { type: "text/html" });
-                const blobUrl = URL.createObjectURL(blob);
-
-                if (frame.dataset.blobUrl) {
-                    URL.revokeObjectURL(frame.dataset.blobUrl);
-                }
-
-                frame.dataset.blobUrl = blobUrl;
-                frame.src = blobUrl;
-                container.style.display = 'block';
-            })
-            .catch(function(error) {
-                console.error(error);
-                alert("Failed to load content through proxy.");
-            });
-    }
-
-    function launchProxiedGame(url) {
-        loadProxiedGame(url);
-    }
-
-    function launchProtectedProxiedGame(url) {
-        const password = prompt('Password:');
-        if (password === 'cinnamon29') {
-            loadProxiedGame(url);
-        }
-    }       }
-    }
+    // Universal fallback:
+    // Any existing game block that calls launchGame() or launchProtectedGame()
+    // automatically uses the proxy above. No individual block changes are needed.
+    window.launchGame = launchGame;
+    window.launchProtectedGame = launchProtectedGame;
 
     // Leave confirmation
     window.addEventListener('beforeunload', function (e) {
