@@ -538,75 +538,42 @@
 
     // ========== GAME LOADING / PROXY ==========
 
+    // Every game is opened through the relay.  The page itself stays in the
+    // normal fullscreen iframe, so game JavaScript keeps a real iframe origin
+    // instead of being loaded from a Blob URL.
+    function getProxiedUrl(url) {
+        const relayUrl = "https://logistical-utilities.vercel.app";
+
+        // If a game is already using this relay, do not proxy it twice.
+        if (url.indexOf(relayUrl + "/api/relay") === 0) {
+            return url;
+        }
+
+        return relayUrl + "/api/relay?url=" + encodeURIComponent(url);
+    }
+
     function launchGame(url) {
-        loadProxiedGame(url);
+        const container = document.getElementById('game-container');
+        const frame = document.getElementById('game-frame');
+
+        container.style.display = 'block';
+        frame.src = getProxiedUrl(url);
     }
 
     function launchProtectedGame(url) {
         const password = prompt('Password:');
         if (password === 'cinnamon29') {
-            loadProxiedGame(url);
+            launchGame(url);
         }
     }
 
-    function loadProxiedGame(url) {
-        const container = document.getElementById('game-container');
-        const frame = document.getElementById('game-frame');
+    // These aliases are kept for the two special chat blocks.
+    function launchProxiedGame(url) {
+        launchGame(url);
+    }
 
-        const relayUrl = "https://logistical-utilities.vercel.app";
-        const proxyUrl = relayUrl + "/api/relay?url=" + encodeURIComponent(url);
-
-        // Clean up any previous proxied page.
-        if (frame.dataset.blobUrl) {
-            URL.revokeObjectURL(frame.dataset.blobUrl);
-            delete frame.dataset.blobUrl;
-        }
-
-        // Show a loading state immediately so the click visibly does something.
-        container.style.display = 'block';
-        frame.srcdoc = '<html><body style="margin:0;background:#111;color:white;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;"><div>Loading...</div></body></html>';
-
-        fetch(proxyUrl, {
-            method: 'GET',
-            cache: 'no-store'
-        })
-        .then(function(response) {
-            if (!response.ok) {
-                throw new Error("Proxy request failed: " + response.status);
-            }
-            return response.text();
-        })
-        .then(function(html) {
-            // Make relative links, scripts, images, stylesheets, etc. resolve
-            // against the original game's directory.
-            const targetDirectory = new URL("./", url).href;
-
-            if (/<head\b[^>]*>/i.test(html)) {
-                html = html.replace(
-                    /<head\b([^>]*)>/i,
-                    '<head$1><base href="' + targetDirectory.replace(/"/g, '&quot;') + '">'
-                );
-            } else {
-                html = '<base href="' + targetDirectory.replace(/"/g, '&quot;') + '">' + html;
-            }
-
-            const blob = new Blob([html], { type: 'text/html' });
-            const blobUrl = URL.createObjectURL(blob);
-
-            frame.dataset.blobUrl = blobUrl;
-            frame.srcdoc = '';
-            frame.src = blobUrl;
-        })
-        .catch(function(error) {
-            console.error("Game proxy error:", error);
-            frame.srcdoc =
-                '<html><body style="margin:0;background:#111;color:white;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;">' +
-                '<div><h2>Failed to load game</h2><p>' +
-                String(error.message || error).replace(/[<>&"]/g, function(c) {
-                    return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];
-                }) +
-                '</p></div></body></html>';
-        });
+    function launchProtectedProxiedGame(url) {
+        launchProtectedGame(url);
     }
 
     function closeGame() {
@@ -614,21 +581,15 @@
         const frame = document.getElementById('game-frame');
 
         container.style.display = 'none';
-
-        if (frame.dataset.blobUrl) {
-            URL.revokeObjectURL(frame.dataset.blobUrl);
-            delete frame.dataset.blobUrl;
-        }
-
-        frame.srcdoc = '';
-        frame.src = '';
+        frame.src = 'about:blank';
     }
 
-    // Universal fallback:
-    // Any existing game block that calls launchGame() or launchProtectedGame()
-    // automatically uses the proxy above. No individual block changes are needed.
+    // Expose every function globally so inline onclick handlers on all game
+    // blocks can always find them.
     window.launchGame = launchGame;
     window.launchProtectedGame = launchProtectedGame;
+    window.launchProxiedGame = launchProxiedGame;
+    window.launchProtectedProxiedGame = launchProtectedProxiedGame;
 
     // Leave confirmation
     window.addEventListener('beforeunload', function (e) {
