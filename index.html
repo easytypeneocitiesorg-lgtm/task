@@ -542,7 +542,12 @@
         const container = document.getElementById('game-container');
         const frame = document.getElementById('game-frame');
         
+        // Fix: Strip out srcdoc completely before loading a normal URL
+        frame.removeAttribute('srcdoc'); 
         frame.src = url;
+        
+        // Ensure frame is visible in case the proxy logic hid it previously
+        frame.style.display = 'block'; 
         container.style.display = 'block';
     }
 
@@ -553,13 +558,11 @@
         
         container.style.display = 'none';
         
-        // Ensure both src and srcdoc are cleared out
         frame.src = '';
-        frame.removeAttribute('srcdoc');
-        frame.srcdoc = '';
+        frame.removeAttribute('srcdoc'); 
+        // Removed the line that was overriding the src with a blank page
         
         if (loading) loading.style.display = 'none';
-        frame.style.display = 'block';
     }
 
     function launchProtectedGame(url) {
