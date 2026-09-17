@@ -572,41 +572,49 @@
     }
 
     // ========== NEW PROXY LOGIC ==========
-    async function launchProxGame(url) {
-        const container = document.getElementById('game-container');
-        const frame = document.getElementById('game-frame');
-        const loading = document.getElementById('loading-text');
+   async function launchProxGame(url) {
+    const container = document.getElementById('game-container');
+    const frame = document.getElementById('game-frame');
+    const loading = document.getElementById('loading-text');
 
-        // Show container and loading indicator; hide iframe until ready
-        container.style.display = 'block';
-        frame.style.display = 'none';
-        loading.style.display = 'block';
-        loading.innerText = 'Loading...';
+    container.style.display = 'block';
+    frame.style.display = 'none';
+    loading.style.display = 'block';
+    loading.innerText = 'Loading...';
 
-        const relayBase = "https://prox2test.vercel.app";
-        const proxyUrl = relayBase + "/api/relay?url=" + encodeURIComponent(url);
+    const relayBase = "https://prox2test.vercel.app";
+    const proxyUrl = relayBase + "/api/relay?url=" + encodeURIComponent(url);
 
-        try {
-            // Remove standard src to prevent network filter flagging
-            frame.removeAttribute('src'); 
-            
-            // Fetch raw HTML in the background
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error('Network response was not ok');
-            
-            let gameHtml = await response.text();
-            
-            // Inject raw HTML into iframe directly via srcdoc
-            frame.srcdoc = gameHtml;
-            
-            // Display frame once the content is injected
-            loading.style.display = 'none';
-            frame.style.display = 'block';
-        } catch (error) {
-            console.error("Fetch failed:", error);
-            loading.innerText = "Failed to load via fetch proxy.";
+    try {
+        frame.removeAttribute('src'); 
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        let gameHtml = await response.text();
+        
+        // --- THE FIX ---
+        // 1. Calculate the proper base directory of the target game
+        let baseUrl = url.endsWith('/') ? url : url.substring(0, url.lastIndexOf('/') + 1);
+        const baseTag = `<base href="${baseUrl}">`;
+        
+        // 2. Inject the <base> tag into the <head> so the .wasm and .data files route correctly
+        if (gameHtml.toLowerCase().includes('<head>')) {
+            gameHtml = gameHtml.replace(/<head>/i, `<head>\n    ${baseTag}`);
+        } else {
+            gameHtml = `${baseTag}\n${gameHtml}`;
         }
+        // ---------------
+        
+        frame.srcdoc = gameHtml;
+        
+        loading.style.display = 'none';
+        frame.style.display = 'block';
+    } catch (error) {
+        console.error("Fetch failed:", error);
+        loading.innerText = "Failed to load via fetch proxy.";
     }
+}
 
     function launchProtectedProxGame(url) {
         const password = prompt('Password:');
