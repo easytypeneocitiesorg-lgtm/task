@@ -573,58 +573,34 @@
     }
 
     // ========== NEW PROXY LOGIC ==========
-    function launchProxGame(url) {
-        const container = document.getElementById('game-container');
-        const frame = document.getElementById('game-frame');
-        const loading = document.getElementById('loading-text');
+   function launchProxGame(url) {
+    const container = document.getElementById('game-container');
+    const frame = document.getElementById('game-frame');
+    const loading = document.getElementById('loading-text');
 
-        // Show container and loading indicator; hide iframe until ready
-        container.style.display = 'block';
-        frame.style.display = 'none';
-        loading.style.display = 'block';
-        loading.innerText = 'Loading...';
+    // Show container and loading indicator; hide iframe until ready
+    container.style.display = 'block';
+    frame.style.display = 'none';
+    loading.style.display = 'block';
+    loading.innerText = 'Loading...';
 
-        const relayBase = "https://logistical-utilities.vercel.app";
-        
-        // Extract origin to be used in the <base> tag
-        let targetOrigin;
-        try {
-            targetOrigin = new URL(url).origin;
-        } catch(e) {
-            targetOrigin = url; // Fallback if url parsing fails
-        }
-        
-        const proxyUrl = relayBase + "/api/relay?url=" + encodeURIComponent(url);
-        
-        fetch(proxyUrl)
-            .then(response => {
-                if (!response.ok) throw new Error("fetch failed");
-                return response.text();
-            })
-            .then(html => {
-                loading.style.display = 'none';
-                frame.style.display = 'block';
-                
-                let processed = html;
-                // Inject the base tag so relative assets load properly
-                if (processed.indexOf("<head>") !== -1) {
-                    processed = processed.replace(
-                        "<head>",
-                        '<head><base href="' + targetOrigin + '/">'
-                    );
-                } else {
-                    processed = '<base href="' + targetOrigin + '/">' + processed;
-                }
-                
-                // Set the processed HTML into the iframe using srcdoc
-                frame.removeAttribute('src'); 
-                frame.srcdoc = processed;
-            })
-            .catch(err => {
-                console.log("error", err);
-                loading.innerText = "Failed.";
-            });
-    }
+    const relayBase = "https://logistical-utilities.vercel.app";
+    const proxyUrl = relayBase + "/api/relay?url=" + encodeURIComponent(url);
+
+    // Set load event listeners before assigning the source
+    frame.onload = function() {
+        loading.style.display = 'none';
+        frame.style.display = 'block';
+    };
+
+    frame.onerror = function() {
+        loading.innerText = "Failed.";
+    };
+
+    // Clean up any old srcdoc data and load the proxy directly
+    frame.removeAttribute('srcdoc'); 
+    frame.src = proxyUrl;
+}
 
     function launchProtectedProxGame(url) {
         const password = prompt('Password:');
